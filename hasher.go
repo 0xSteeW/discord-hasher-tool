@@ -31,10 +31,14 @@ func main() {
 	client, err := discordgo.New("token")
 	if (err != nil) {
 		fmt.Printf("Invalid token or session error: %s", err)
-		return
+		os.Exit(1)
 	}
 
 	err = client.Open()
+	if err != nil {
+		fmt.Println("Error opening session")
+		os.Exit(1)
+	}
 	client.AddHandler(messageCreate)
 
 	sc := make(chan os.Signal, 1)
