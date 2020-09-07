@@ -23,7 +23,7 @@ var currentChannelID string
 var pokemonReceived chan string = make(chan string, 1)
 
 type Hashes struct {
-	Hashes []string
+	Hashes map[string]string
 }
 
 func main() {
@@ -98,6 +98,7 @@ func ReadNames() []string {
 func HashUpdater(client *discordgo.Session, channelID string) {
 	currentChannelID = channelID
 	hashes := new(Hashes)
+	hashes.Hashes = make(map[string]string)
 	pokemonNames = ReadNames()
 	for idx, name := range pokemonNames {
 		time.Sleep(3*time.Second)
@@ -105,7 +106,7 @@ func HashUpdater(client *discordgo.Session, channelID string) {
 		fmt.Printf("Hasing now: %s, %d/%d", name, idx, len(pokemonNames))
 		client.ChannelMessageSend(channelID, fmt.Sprintf("p!info %s", name))
 		hash := <- pokemonReceived
-		hashes.Hashes = append(hashes.Hashes, hash)
+		hashes.Hashes[name] = hash
 	}
 	// For loop finished, marshal the hashes into YAML format
 	content, err := yaml.Marshal(hashes)
