@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"image"
+	"image/color"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -118,126 +119,6 @@ func HashUpdater(client *discordgo.Session, channelID string) {
 	}
 	WriteList(content)
 }
-func CropUselessArea(img *image.Image) image.Image {
-	topLeft, bottomRight := FindVisibleVertexes(*img)
-	size := image.Point{X: bottomRight.X - topLeft.X, Y: bottomRight.Y - topLeft.Y}
-	fmt.Println(size)
-	newImg, _ := cutter.Crop(*img, cutter.Config{
-		Width:  size.X,
-		Height: size.Y,
-		Anchor: topLeft,
-		Mode:   cutter.TopLeft,
-	})
-	return newImg
-}
-
-func FindVisibleVertexes(img image.Image) (image.Point, image.Point) {
-	var COLOR_TRESHOLD int8 = 50
-	// Iterate over img.At(), because it gives a color.Color object. Test if that color.Color is not empty, and seek for the nearest to each border.
-	sizeX := img.Bounds().Max.X
-	sizeY := img.Bounds().Max.Y
-	// First get top left vertex, starting from left border
-	fmt.Printf("Size: %d,%d\n", sizeX, sizeY)
-	var currentLowest int
-	var currentVertex image.Point
-	var topLeft image.Point
-	var bottomRight image.Point
-	// sizeX < sizeY ? sizeY+1 : sizeX+1 , assign whichever is higer, and to the max size of the image, so no value can be higher than currentLowest
-	if sizeX < sizeY {
-		currentLowest = sizeY + 1
-	} else {
-		currentLowest = sizeX + 1
-	}
-
-	// Left border
-	for row := 0; row < sizeY; row++ {
-		for pixel := 0; pixel < sizeX; pixel++ {
-			c := img.At(pixel, row)
-			_, _, _, alpha := c.RGBA()
-			if int8(alpha) > COLOR_TRESHOLD {
-				// Found non-transparent pixel, check if the distance from lowest is less
-				if pixel < currentLowest {
-					currentLowest = pixel
-					currentVertex = image.Point{X: pixel, Y: row}
-				}
-				// Break current column after having found non-transparent pixel
-			}
-
-		}
-	}
-	topLeft.X = currentVertex.X
-
-	if sizeX < sizeY {
-		currentLowest = sizeY + 1
-	} else {
-		currentLowest = sizeX + 1
-	}
-	currentVertex = image.Point{0, 0}
-	// Top border
-	for column := 0; column < sizeX; column++ {
-		for pixel := 0; pixel < sizeY; pixel++ {
-			c := img.At(column, pixel)
-			_, _, _, alpha := c.RGBA()
-			if int8(alpha) > COLOR_TRESHOLD {
-				// Found non-transparent pixel, check if the distance from lowest is less
-				if pixel < currentLowest {
-					currentLowest = pixel
-					currentVertex = image.Point{X: column, Y: pixel}
-				}
-			}
-
-		}
-	}
-	topLeft.Y = currentVertex.Y
-	if sizeX < sizeY {
-		currentLowest = sizeY + 1
-	} else {
-		currentLowest = sizeX + 1
-	}
-	// Right
-	for row := 0; row < sizeY; row++ {
-		// Just change the pixel direction (y stays)
-		for pixel := sizeX - 1; pixel >= 0; pixel-- {
-			c := img.At(pixel, row)
-			_, _, _, alpha := c.RGBA()
-			if int8(alpha) > COLOR_TRESHOLD {
-				// Found non-transparent pixel, check if the distance from lowest is less
-				if pixel < currentLowest {
-					currentLowest = pixel
-					currentVertex = image.Point{X: sizeX - 1 - pixel, Y: row}
-				}
-				// Break current column after having found non-transparent pixel
-			}
-
-		}
-	}
-	bottomRight.X = currentVertex.X
-	if sizeX < sizeY {
-		currentLowest = sizeY + 1
-	} else {
-		currentLowest = sizeX + 1
-	}
-	currentVertex = image.Point{0, 0}
-
-	// Bottom
-	for column := 0; column < sizeX; column++ {
-		for pixel := sizeY - 1; pixel >= 0; pixel-- {
-			c := img.At(column, pixel)
-			_, _, _, alpha := c.RGBA()
-			if int8(alpha) > COLOR_TRESHOLD {
-				// Found non-transparent pixel, check if the distance from lowest is less
-				if pixel < currentLowest {
-					currentLowest = pixel
-					currentVertex = image.Point{X: column, Y: sizeY - 1 - pixel}
-				}
-			}
-
-		}
-	}
-	bottomRight.Y = currentVertex.Y
-
-	return topLeft, bottomRight
-}
 
 func Download(url string) *image.Image {
 	response, err := http.Get(url)
@@ -257,4 +138,140 @@ func Hash(imageDecoder image.Image) string {
 		log.Panic("Could not get the hash of ", currentPokemon)
 	}
 	return hash.ToString()
+}
+func CropUselessArea(img *image.Image) image.Image {
+	topLeft, bottomRight, transparent := FindVisibleVertexes(*img)
+	size := image.Point{X: bottomRight.X - topLeft.X, Y: bottomRight.Y - topLeft.Y}
+	fmt.Println(size)
+	newImg, _ := cutter.Crop(transparent, cutter.Config{
+		Width:  size.X,
+		Height: size.Y,
+		Anchor: topLeft,
+		Mode:   cutter.TopLeft,
+	})
+	return newImg
+}
+
+func FindVisibleVertexes(img image.Image) (image.Point, image.Point, image.Image) {
+	var COLOR_TRESHOLD int8 = 50
+	// Iterate over img.At(), because it gives a color.Color object. Test if that color.Color is not empty, and seek for the nearest to each border.
+	sizeX := img.Bounds().Max.X
+	sizeY := img.Bounds().Max.Y
+
+	// Create a new RGBA image, make a copy of img, but remove any pixel with alpha < COLOR_TRESHOLD
+	transparent := image.NewRGBA(img.Bounds())
+
+	// First get top left vertex, starting from left border
+	fmt.Printf("Size: %d,%d\n", sizeX, sizeY)
+	var currentLowest int
+	var currentVertex image.Point
+	var topLeft image.Point
+	var bottomRight image.Point
+	// sizeX < sizeY ? sizeY+1 : sizeX+1 , assign whichever is higer, and to the max size of the image, so no value can be higher than currentLowest
+	if sizeX < sizeY {
+		currentLowest = sizeY + 1
+	} else {
+		currentLowest = sizeX + 1
+	}
+
+	// Left border
+	for row := 0; row < sizeY; row++ {
+		for pixel := 0; pixel < sizeX; pixel++ {
+			c := img.At(pixel, row)
+			_, _, _, alpha := c.RGBA()
+			if int8(alpha) > COLOR_TRESHOLD {
+				transparent.Set(pixel, row, color.Transparent)
+				// Found non-transparent pixel, check if the distance from lowest is less
+				if pixel < currentLowest {
+					currentLowest = pixel
+					currentVertex = image.Point{X: pixel, Y: row}
+				}
+				// Break current column after having found non-transparent pixel
+			} else {
+				transparent.Set(pixel, row, c)
+			}
+
+		}
+	}
+	topLeft.X = currentVertex.X
+
+	if sizeX < sizeY {
+		currentLowest = sizeY + 1
+	} else {
+		currentLowest = sizeX + 1
+	}
+	currentVertex = image.Point{0, 0}
+	// Top border
+	for column := 0; column < sizeX; column++ {
+		for pixel := 0; pixel < sizeY; pixel++ {
+			c := img.At(column, pixel)
+			_, _, _, alpha := c.RGBA()
+			if int8(alpha) > COLOR_TRESHOLD {
+				transparent.Set(column, pixel, color.Transparent)
+				// Found non-transparent pixel, check if the distance from lowest is less
+				if pixel < currentLowest {
+					currentLowest = pixel
+					currentVertex = image.Point{X: column, Y: pixel}
+				}
+			} else {
+				transparent.Set(column, pixel, c)
+			}
+
+		}
+	}
+	topLeft.Y = currentVertex.Y
+	if sizeX < sizeY {
+		currentLowest = sizeY + 1
+	} else {
+		currentLowest = sizeX + 1
+	}
+	// Right
+	for row := 0; row < sizeY; row++ {
+		// Just change the pixel direction (y stays)
+		for pixel := sizeX - 1; pixel >= 0; pixel-- {
+			c := img.At(pixel, row)
+			_, _, _, alpha := c.RGBA()
+			if int8(alpha) > COLOR_TRESHOLD {
+				transparent.Set(sizeX-1-pixel, row, color.Transparent)
+				// Found non-transparent pixel, check if the distance from lowest is less
+				if pixel < currentLowest {
+					currentLowest = pixel
+					currentVertex = image.Point{X: sizeX - 1 - pixel, Y: row}
+				}
+				// Break current column after having found non-transparent pixel
+			} else {
+				transparent.Set(sizeX-1-pixel, row, c)
+			}
+
+		}
+	}
+	bottomRight.X = currentVertex.X
+	if sizeX < sizeY {
+		currentLowest = sizeY + 1
+	} else {
+		currentLowest = sizeX + 1
+	}
+	currentVertex = image.Point{0, 0}
+
+	// Bottom
+	for column := 0; column < sizeX; column++ {
+		for pixel := sizeY - 1; pixel >= 0; pixel-- {
+			c := img.At(column, pixel)
+			_, _, _, alpha := c.RGBA()
+			if int8(alpha) > COLOR_TRESHOLD {
+				transparent.Set(column, sizeY-1-pixel, color.Transparent)
+				// Found non-transparent pixel, check if the distance from lowest is less
+				if pixel < currentLowest {
+					currentLowest = pixel
+					currentVertex = image.Point{X: column, Y: sizeY - 1 - pixel}
+				}
+			} else {
+				transparent.Set(column, sizeY-1-pixel, c)
+			}
+
+		}
+	}
+	bottomRight.Y = currentVertex.Y
+
+	return topLeft, bottomRight, transparent
 }
