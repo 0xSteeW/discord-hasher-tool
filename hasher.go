@@ -23,10 +23,10 @@ import (
 var pokemonNames []string
 var currentPokemon string
 var currentChannelID string
-var pokemonReceived chan string = make(chan string, 1)
+var pokemonReceived chan []string = make(chan []string, 1)
 
 type Hashes struct {
-	Hashes map[string]string
+	Hashes map[string][]string
 }
 
 func main() {
@@ -65,7 +65,8 @@ func messageCreate(client *discordgo.Session, message *discordgo.MessageCreate) 
 		fmt.Printf("Received image for pokemon: %s\n", currentPokemon)
 		url := message.Embeds[0].Image.URL
 		imageDecoder := Download(url)
-		hash := Hash(CropUselessArea(imageDecoder))
+		phash, dhash := Hash(CropUselessArea(imageDecoder))
+		hash := []string{phash, dhash}
 		pokemonReceived <- hash
 	}
 }
@@ -101,7 +102,7 @@ func ReadNames() []string {
 func HashUpdater(client *discordgo.Session, channelID string) {
 	currentChannelID = channelID
 	hashes := new(Hashes)
-	hashes.Hashes = make(map[string]string)
+	hashes.Hashes = make(map[string][]string)
 	pokemonNames = ReadNames()
 	for idx, name := range pokemonNames {
 		time.Sleep(3 * time.Second)
@@ -132,12 +133,13 @@ func Download(url string) *image.Image {
 	return &decoded
 }
 
-func Hash(imageDecoder image.Image) string {
-	hash, err := goimagehash.PerceptionHash(imageDecoder)
+func Hash(imageDecoder image.Image) (string, string) {
+	phash, err := goimagehash.PerceptionHash(imageDecoder)
+	dhash, err := goimagehash.DifferenceHash(imageDecoder)
 	if err != nil {
 		log.Panic("Could not get the hash of ", currentPokemon)
 	}
-	return hash.ToString()
+	return phash.ToString(), dhash.ToString()
 }
 func CropUselessArea(img *image.Image) image.Image {
 	topLeft, bottomRight, transparent := FindVisibleVertexes(*img)

@@ -766,7 +766,7 @@ Golisopod
 Sandygast
 Palossand
 Pyukumuku
-'Type
+Type: Null
 Silvally
 Minior
 Komala
@@ -852,7 +852,7 @@ Grimmsnarl
 Obstagoon
 Perrserker
 Cursola
-Sirfetch'd
+Sirfetchd
 Mr. Rime
 Runerigus
 Milcery
@@ -878,7 +878,7 @@ Zamazenta
 Nidoqueen
 Diglett
 Kadabra
-Farfetch'd
+Farfetchd
 Electrode
 Scizor
 Porygon
