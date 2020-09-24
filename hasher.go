@@ -108,7 +108,7 @@ func HashUpdater(client *discordgo.Session, channelID string) {
 		time.Sleep(3 * time.Second)
 		currentPokemon = name
 		fmt.Printf("Hasing now: %s, %d/%d", name, idx, len(pokemonNames))
-		client.ChannelMessageSend(channelID, fmt.Sprintf("p!info %s", name))
+		client.ChannelMessageSend(channelID, fmt.Sprintf("p!dex %s", name))
 		hash := <-pokemonReceived
 		hashes.Hashes[name] = hash
 	}
